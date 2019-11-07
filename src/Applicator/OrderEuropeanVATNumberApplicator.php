@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Prometee\SyliusVIESClientPlugin\Applicator;
 
-use InvalidArgumentException;
 use Prometee\SyliusVIESClientPlugin\Entity\EuropeanChannelAwareInterface;
 use Prometee\SyliusVIESClientPlugin\Entity\VATNumberAwareInterface;
 use Prometee\VIESClient\Util\VatNumberUtil;
@@ -12,14 +11,28 @@ use Sylius\Component\Addressing\Model\ZoneInterface;
 use Sylius\Component\Core\Model\AdjustmentInterface;
 use Sylius\Component\Core\Model\OrderInterface;
 use Sylius\Component\Core\Taxation\Applicator\OrderTaxesApplicatorInterface;
-use Webmozart\Assert\Assert;
+use Sylius\Component\Order\Factory\AdjustmentFactoryInterface;
+use Sylius\Component\Order\Model\AdjustmentInterface as OrderAdjustmentInterface;
 
 final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInterface
 {
+    public const SUBSTRACTED_TAX = 'substracted_tax';
+
+    /**
+     * @var AdjustmentFactoryInterface
+     */
+    private $adjustmentFactory;
+
+    public function __construct(AdjustmentFactoryInterface $adjustmentFactory)
+    {
+        $this->adjustmentFactory = $adjustmentFactory;
+    }
+
     /**
      * {@inheritdoc}
      *
-     * @throws InvalidArgumentException
+     * If an order contains a valid VAT number,
+     * count out a VAT via adjustments
      */
     public function apply(OrderInterface $order, ZoneInterface $zone): void
     {
@@ -27,24 +40,28 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
         $channel = $order->getChannel();
         /** @var VATNumberAwareInterface $billingAddress */
         $billingAddress = $order->getBillingAddress();
+
+        $order->removeAdjustmentsRecursively(self::SUBSTRACTED_TAX);
+
         if (
             $channel !== null
             && $channel->getEuropeanZone() !== null
             && $channel->getBaseCountry() !== null
-            && $order->getBillingAddress() !== null
             && $billingAddress !== null
         ) {
             // These weird assignment is required for PHPStan
             $billingCountryCode = $order->getBillingAddress()->getCountryCode();
 
             if ($this->isValidForZeroEuropeanVAT($billingAddress, $billingCountryCode, $zone, $channel)) {
-                foreach ($order->getItems() as $item) {
-                    $quantity = $item->getQuantity();
-                    Assert::notSame($quantity, 0, 'Cannot apply tax to order item with 0 quantity.');
+                $substractTaxesSum = $this->sumTaxes($order);
 
-                    $item->removeAdjustmentsRecursively(AdjustmentInterface::TAX_ADJUSTMENT);
-                }
+                $substractTaxAdjustment = $this->adjustmentFactory
+                    ->createWithData(self::SUBSTRACTED_TAX, '', $substractTaxesSum);
+                $order->addAdjustment($substractTaxAdjustment);
+
+                $order->removeAdjustmentsRecursively(AdjustmentInterface::TAX_ADJUSTMENT);
             }
+
         }
     }
 
@@ -77,5 +94,27 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
         }
 
         return false;
+    }
+
+    /**
+     * Sum an order not neutral taxes
+     */
+    private function sumTaxes(OrderInterface $order): int
+    {
+        $taxAdjustments = $order->getAdjustmentsRecursively(
+            AdjustmentInterface::TAX_ADJUSTMENT
+        );
+
+        $substractTaxes = $taxAdjustments->map(
+            function (OrderAdjustmentInterface $adjustment) {
+                if ($adjustment->isNeutral()) {
+                    return $adjustment->getAmount();
+                }
+
+                return 0;
+            }
+        );
+
+        return (int) array_sum($substractTaxes->toArray()) * -1;
     }
 }

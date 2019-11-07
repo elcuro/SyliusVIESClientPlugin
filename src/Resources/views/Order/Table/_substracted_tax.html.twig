@@ -1,0 +1,13 @@
+{% import "@SyliusShop/Common/Macro/money.html.twig" as money %}
+{% set substractedTaxAdjustment = constant('Prometee\\SyliusVIESClientPlugin\\Applicator\\OrderEuropeanVATNumberApplicator::SUBSTRACTED_TAX') %}
+
+{% set substractedTax = order.getAdjustmentsTotal(substractedTaxAdjustment) %}
+
+{% if substractedTax < 0 %}
+    <tr>
+        <td colspan="4" class="right aligned" id="payment-fee">
+            {{ 'prometee_sylius_vies_client.ui.exempt_from_vat'|trans }}:
+            {{ money.format(substractedTax ,order.currencyCode) }}
+        </td>
+    </tr>
+{% endif %}
