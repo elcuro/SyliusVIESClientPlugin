@@ -1,0 +1,9 @@
+prometee_sylius_vies_client:
+    form:
+        vat_number: 'DPH DIČ'
+        base_country: 'Země registrace k DPH'
+        european_zone: 'Zóna zemí EU'
+    ui:
+        eu_vat_number: 'DPH DIČ'
+        european_channel: 'Informace o DPH v rámci EU'
+        exempt_from_vat: 'Zboží osvobozené od DPH'

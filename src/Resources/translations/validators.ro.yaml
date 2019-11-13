@@ -1,0 +1,3 @@
+prometee_sylius_vies_client:
+    country_vat_number:
+        invalid: 'Acest număr de înregistrare în scopuri TVA nu corespunde țării selectate'      

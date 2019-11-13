@@ -1,0 +1,9 @@
+prometee_sylius_vies_client:
+    form:
+        vat_number: 'Cod fiscal CIF/CUI'
+        base_country: 'Țara de înregistrare în scopuri TVA'
+        european_zone: 'Zona Uniunii Europene'
+    ui:
+        eu_vat_number: 'Cod fiscal CIF/CUI'
+        european_channel: 'Informații europene solicitate'
+        exempt_from_vat: 'Mărfuri scutite de TVA'

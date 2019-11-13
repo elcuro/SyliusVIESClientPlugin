@@ -6,3 +6,4 @@ prometee_sylius_vies_client:
     ui:
         eu_vat_number: 'European VAT Number'
         european_channel: 'European required information'
+        exempt_from_vat: 'Goods exempt from VAT'

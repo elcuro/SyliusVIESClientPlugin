@@ -1,0 +1,9 @@
+prometee_sylius_vies_client:
+    form:
+        vat_number: 'EU VAT Nummer'
+        base_country: 'Juristisches Land'
+        european_zone: 'Zone der Europäischen Union'
+    ui:
+        eu_vat_number: 'Europäische Umsatzsteuer-Identifikationsnummer'
+        european_channel: 'Erforderliche europäische Informationen'
+        exempt_from_vat: 'Waren von der Mehrwertsteuer befreit'

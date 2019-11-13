@@ -1,0 +1,3 @@
+prometee_sylius_vies_client:
+    country_vat_number:
+        invalid: 'Ez az adószám nem egyezik a kiválasztott országgal'      

@@ -1,0 +1,9 @@
+prometee_sylius_vies_client:
+    form:
+        vat_number: 'Közösségi adószám'
+        base_country: 'Az ország, ahol az adószám bejegyzésre került'
+        european_zone: 'Európai Unió zóna'
+    ui:
+        eu_vat_number: 'Közösségi adószám'
+        european_channel: 'Európában megkövetelt információk'
+        exempt_from_vat: 'HÉA-mentes áruk'
