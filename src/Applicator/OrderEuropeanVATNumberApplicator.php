@@ -115,6 +115,25 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
             }
         );
 
-        return (int) array_sum($substractTaxes->toArray()) * -1;
+        $tax = (int) array_sum($substractTaxes->toArray()) * -1;
+
+        return $this->roundTax($order, $tax);
+    }
+
+    /**
+     * Round tax amount
+     *
+     * because some currencies doesn't support amounts with decimals.
+     * This could be problem with e-payments.
+     */
+    private function roundTax(OrderInterface $order, int $tax): int
+    {
+        $currency = $order->getCurrencyCode();
+
+        if ($currency === 'RON' || $currency === 'HUF') {
+            $tax = (int)round($tax, -2);
+        }
+
+        return $tax;
     }
 }
