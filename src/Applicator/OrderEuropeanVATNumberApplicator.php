@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Prometee\SyliusVIESClientPlugin\Applicator;
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Prometee\SyliusVIESClientPlugin\Entity\EuropeanChannelAwareInterface;
 use Prometee\SyliusVIESClientPlugin\Entity\VATNumberAwareInterface;
 use Prometee\VIESClient\Util\VatNumberUtil;
 use Sylius\Component\Addressing\Model\ZoneInterface;
 use Sylius\Component\Core\Model\AdjustmentInterface;
 use Sylius\Component\Core\Model\OrderInterface;
+use Sylius\Component\Core\Model\OrderItemUnitInterface;
 use Sylius\Component\Core\Taxation\Applicator\OrderTaxesApplicatorInterface;
 use Sylius\Component\Order\Factory\AdjustmentFactoryInterface;
 use Sylius\Component\Order\Model\AdjustmentInterface as OrderAdjustmentInterface;
@@ -41,8 +43,6 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
         /** @var VATNumberAwareInterface $billingAddress */
         $billingAddress = $order->getBillingAddress();
 
-        $order->removeAdjustmentsRecursively(self::SUBSTRACTED_TAX);
-
         if (
             $channel !== null
             && $channel->getEuropeanZone() !== null
@@ -52,14 +52,27 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
             // These weird assignment is required for PHPStan
             $billingCountryCode = $order->getBillingAddress()->getCountryCode();
 
+
             if ($this->isValidForZeroEuropeanVAT($billingAddress, $billingCountryCode, $zone, $channel)) {
-                $substractTaxesSum = $this->sumTaxes($order);
+                $adjustments = $order->getAdjustmentsRecursively(AdjustmentInterface::TAX_ADJUSTMENT);
 
-                $substractTaxAdjustment = $this->adjustmentFactory
-                    ->createWithData(self::SUBSTRACTED_TAX, '', $substractTaxesSum);
-                $order->addAdjustment($substractTaxAdjustment);
+                foreach ($adjustments as $adjustment) {
+                    $amount = $adjustment->getAmount();
+                    $isNeutral = $adjustment->isNeutral();
 
-                $order->removeAdjustmentsRecursively(AdjustmentInterface::TAX_ADJUSTMENT);
+                    $adjustable = $adjustment->getAdjustable();
+
+                    $zeroVatAdjustment = $this->adjustmentFactory->createWithData(
+                        AdjustmentInterface::TAX_ADJUSTMENT,
+                        '0% DPH',
+                        -$amount,
+                        !$isNeutral
+                    );
+                    $adjustable->addAdjustment($zeroVatAdjustment);
+                    $adjustable->removeAdjustment($adjustment);
+                }
+
+                $order->recalculateAdjustmentsTotal();
             }
 
         }
@@ -94,30 +107,6 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
         }
 
         return false;
-    }
-
-    /**
-     * Sum an order not neutral taxes
-     */
-    private function sumTaxes(OrderInterface $order): int
-    {
-        $taxAdjustments = $order->getAdjustmentsRecursively(
-            AdjustmentInterface::TAX_ADJUSTMENT
-        );
-
-        $substractTaxes = $taxAdjustments->map(
-            function (OrderAdjustmentInterface $adjustment) {
-                if ($adjustment->isNeutral()) {
-                    return $adjustment->getAmount();
-                }
-
-                return 0;
-            }
-        );
-
-        $tax = (int) array_sum($substractTaxes->toArray()) * -1;
-
-        return $this->roundTax($order, $tax);
     }
 
     /**

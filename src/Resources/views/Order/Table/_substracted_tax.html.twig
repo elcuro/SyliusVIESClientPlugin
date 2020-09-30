@@ -1,7 +1,7 @@
 {% import "@SyliusShop/Common/Macro/money.html.twig" as money %}
 {% set substractedTaxAdjustment = constant('Prometee\\SyliusVIESClientPlugin\\Applicator\\OrderEuropeanVATNumberApplicator::SUBSTRACTED_TAX') %}
 
-{% set substractedTax = order.getAdjustmentsTotal(substractedTaxAdjustment) %}
+{% set substractedTax = order.getAdjustmentsTotalRecursively(substractedTaxAdjustment) %}
 
 {% if substractedTax < 0 %}
     <tr>
