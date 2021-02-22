@@ -52,24 +52,22 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
             // These weird assignment is required for PHPStan
             $billingCountryCode = $order->getBillingAddress()->getCountryCode();
 
-
             if ($this->isValidForZeroEuropeanVAT($billingAddress, $billingCountryCode, $zone, $channel)) {
                 $adjustments = $order->getAdjustmentsRecursively(AdjustmentInterface::TAX_ADJUSTMENT);
 
                 foreach ($adjustments as $adjustment) {
-                    $amount = $adjustment->getAmount();
-                    $isNeutral = $adjustment->isNeutral();
-
-                    $adjustable = $adjustment->getAdjustable();
+                    $amount = $adjustment->getAmount() * -1;
+                    $isNeutral = false;
 
                     $zeroVatAdjustment = $this->adjustmentFactory->createWithData(
                         AdjustmentInterface::TAX_ADJUSTMENT,
                         '0% DPH',
-                        -$amount,
-                        !$isNeutral
+                        $amount,
+                        $isNeutral
                     );
+
+                    $adjustable = $adjustment->getAdjustable();
                     $adjustable->addAdjustment($zeroVatAdjustment);
-                    $adjustable->removeAdjustment($adjustment);
                 }
 
                 $order->recalculateAdjustmentsTotal();
