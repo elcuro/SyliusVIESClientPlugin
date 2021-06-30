@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Prometee\SyliusVIESClientPlugin\Entity;
 
-interface VATNumberAwareInterface
+use Sylius\Component\Core\Model\AddressInterface;
+
+interface VATNumberAwareInterface extends AddressInterface
 {
     /**
      * @return string|null

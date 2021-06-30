@@ -8,7 +8,9 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Prometee\SyliusVIESClientPlugin\Entity\EuropeanChannelAwareInterface;
 use Prometee\SyliusVIESClientPlugin\Entity\VATNumberAwareInterface;
 use Prometee\VIESClient\Util\VatNumberUtil;
+use Sylius\Component\Addressing\Matcher\ZoneMatcherInterface;
 use Sylius\Component\Addressing\Model\ZoneInterface;
+use Sylius\Component\Core\Model\AddressInterface;
 use Sylius\Component\Core\Model\AdjustmentInterface;
 use Sylius\Component\Core\Model\OrderInterface;
 use Sylius\Component\Core\Model\OrderItemUnitInterface;
@@ -25,9 +27,17 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
      */
     private $adjustmentFactory;
 
-    public function __construct(AdjustmentFactoryInterface $adjustmentFactory)
-    {
+    /**
+     * @var ZoneMatcherInterface
+     */
+    private $zoneMatcher;
+
+    public function __construct(
+        AdjustmentFactoryInterface $adjustmentFactory,
+        ZoneMatcherInterface $zoneMatcher
+    ) {
         $this->adjustmentFactory = $adjustmentFactory;
+        $this->zoneMatcher = $zoneMatcher;
     }
 
     /**
@@ -40,6 +50,7 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
     {
         /** @var EuropeanChannelAwareInterface $channel */
         $channel = $order->getChannel();
+
         /** @var VATNumberAwareInterface $billingAddress */
         $billingAddress = $order->getBillingAddress();
 
@@ -49,57 +60,72 @@ final class OrderEuropeanVATNumberApplicator implements OrderTaxesApplicatorInte
             && $channel->getBaseCountry() !== null
             && $billingAddress !== null
         ) {
-            // These weird assignment is required for PHPStan
             $billingCountryCode = $order->getBillingAddress()->getCountryCode();
 
-            if ($this->isValidForZeroEuropeanVAT($billingAddress, $billingCountryCode, $zone, $channel)) {
-                $adjustments = $order->getAdjustmentsRecursively(AdjustmentInterface::TAX_ADJUSTMENT);
-
-                foreach ($adjustments as $adjustment) {
-                    $amount = $adjustment->getAmount() * -1;
-                    $isNeutral = false;
-
-                    $zeroVatAdjustment = $this->adjustmentFactory->createWithData(
-                        AdjustmentInterface::TAX_ADJUSTMENT,
-                        '0% DPH',
-                        $amount,
-                        $isNeutral
-                    );
-
-                    $adjustable = $adjustment->getAdjustable();
-                    $adjustable->addAdjustment($zeroVatAdjustment);
-                }
-
-                $order->recalculateAdjustmentsTotal();
+            if (!$this->isValidForZeroEuropeanVAT(
+                $billingAddress,
+                $billingCountryCode,
+                $channel
+            )) {
+                return;
             }
+
+            $adjustments = $order->getAdjustmentsRecursively(AdjustmentInterface::TAX_ADJUSTMENT);
+
+            foreach ($adjustments as $adjustment) {
+                $amount = $adjustment->getAmount() * -1;
+                $isNeutral = false;
+
+                $zeroVatAdjustment = $this->adjustmentFactory->createWithData(
+                    AdjustmentInterface::TAX_ADJUSTMENT,
+                    '0% DPH',
+                    $amount,
+                    $isNeutral
+                );
+
+                $adjustable = $adjustment->getAdjustable();
+                $adjustable->addAdjustment($zeroVatAdjustment);
+            }
+
+            $order->recalculateAdjustmentsTotal();
 
         }
     }
 
-    /**
-     * @param VATNumberAwareInterface $billingAddress
-     * @param string|null $billingCountryCode
-     * @param ZoneInterface $zone
-     * @param EuropeanChannelAwareInterface $channel
-     *
-     * @return bool
-     */
-    public function isValidForZeroEuropeanVAT(
+    private function isValidForZeroEuropeanVAT(
         VATNumberAwareInterface $billingAddress,
         ?string $billingCountryCode,
-        ZoneInterface $zone,
         EuropeanChannelAwareInterface $channel
     ): bool {
-        if ($billingAddress->hasVatNumber()) {
-            $vatNumberArr = VatNumberUtil::split($billingAddress->getVatNumber());
-            if (
-                $vatNumberArr !== null
-                && $zone === $channel->getEuropeanZone()
-                && $channel->getBaseCountry() !== null
-                && $channel->getBaseCountry()->getCode() !== $billingCountryCode
-                && $billingCountryCode !== null
-                && $billingCountryCode === $vatNumberArr[0]
-            ) {
+        if (!$billingAddress->hasVatNumber()) {
+            return false;
+        }
+
+        $vatNumberArr = VatNumberUtil::split($billingAddress->getVatNumber());
+        if ($vatNumberArr === null) {
+            return false;
+        }
+
+        if ($this->isBillingAddressInEuropeanZone($billingAddress, $channel->getEuropeanZone())
+            && $channel->getBaseCountry() !== null
+            && $channel->getBaseCountry()->getCode() !== $billingCountryCode
+            && $billingCountryCode !== null
+            && $billingCountryCode === $vatNumberArr[0]
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function isBillingAddressInEuropeanZone(
+        AddressInterface $billingAddress,
+        ZoneInterface $euZone
+    ): bool {
+        $zones = $this->zoneMatcher->matchAll($billingAddress);
+
+        foreach ($zones as $zone) {
+            if ($zone === $euZone) {
                 return true;
             }
         }

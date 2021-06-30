@@ -3,3 +3,4 @@ services:
         class: Prometee\SyliusVIESClientPlugin\Applicator\OrderEuropeanVATNumberApplicator
         arguments:
             $adjustmentFactory: "@sylius.factory.adjustment"
+            $zoneMatcher: "@sylius.zone_matcher"
